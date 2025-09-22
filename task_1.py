@@ -51,7 +51,7 @@ class LinkedList:
         while cur:
             if cur.data == data:
                 return cur
-        cur = cur.next
+            cur = cur.next
         return None
 
     def print_list(self):
@@ -61,31 +61,6 @@ class LinkedList:
             current = current.next
 
 llist = LinkedList()
-
-# # Вставляємо вузли в початок
-# llist.insert_at_beginning(5)
-# llist.insert_at_beginning(10)
-# llist.insert_at_beginning(15)
-
-# # Вставляємо вузли в кінець
-# llist.insert_at_end(20)
-# llist.insert_at_end(25)
-
-# # Друк зв'язного списку
-# print("Зв'язний список:")
-# llist.print_list()
-
-# # Видаляємо вузол
-# llist.delete_node(10)
-
-# print("\nЗв'язний список після видалення вузла з даними 10:")
-# llist.print_list()
-
-# # Пошук елемента у зв'язному списку
-# print("\nШукаємо елемент 15:")
-# element = llist.search_element(15)
-# if element:
-#     print(element.data)
 
 """
 Для реалізації однозв'язного списку (приклад реалізації можна взяти з конспекту) необхідно:
@@ -114,18 +89,23 @@ def merge_sorted_linked_lists(list1: LinkedList, list2: LinkedList) -> LinkedLis
     current2 = list2.head
 
     while current1 and current2:
-        if current1.data < current2.data:
-            tail.next = current1
+        if current1.data <= current2.data:
+            tail.next = Node(current1.data)
             current1 = current1.next
         else:
-            tail.next = current2
+            tail.next = Node(current2.data)
             current2 = current2.next
         tail = tail.next
 
-    if current1:
-        tail.next = current1
-    elif current2:
-        tail.next = current2
+    while current1:
+        tail.next = Node(current1.data)
+        current1 = current1.next
+        tail = tail.next
+
+    while current2:
+        tail.next = Node(current2.data)
+        current2 = current2.next
+        tail = tail.next
 
     merged_list.head = dummy.next
     return merged_list
@@ -172,33 +152,38 @@ def sort_linked_list(linked_list: LinkedList) -> LinkedList:
     linked_list.head = merge_sort(linked_list.head)
     return linked_list
 
-# Приклад використання функцій
-print("Зв'язний список:")
+# ===== Демонстрація =====
+llist = LinkedList()
+llist.insert_at_beginning(5)
+llist.insert_at_beginning(10)
+llist.insert_at_beginning(15)
+llist.insert_at_end(20)
+llist.insert_at_end(25)
+
+print("Зв'язний список (llist):")
 llist.print_list()
 
 llist1 = LinkedList()
-llist1.insert_at_end(1)
-llist1.insert_at_end(3)
-llist1.insert_at_end(5) 
-llist1.insert_at_end(7)
-
-print("Зв'язний список1:")
-llist1.print_list()
+for x in (1, 3, 5, 7):
+    llist1.insert_at_end(x)
 
 llist2 = LinkedList()
-llist2.insert_at_end(2)
-llist2.insert_at_end(4)
-llist2.insert_at_end(6)
+for x in (2, 4, 6):
+    llist2.insert_at_end(x)
 
+print("\nЗв'язний список1:")
+llist1.print_list()
 print("Зв'язний список2:")
 llist2.print_list()
 
 merged_list = merge_sorted_linked_lists(llist1, llist2)
 print("\nОб'єднаний відсортований список:")
 merged_list.print_list()
+
 reversed_list = reverse_linked_list(merged_list)
 print("\nРеверсований список:")
 reversed_list.print_list()
+
 sorted_list = sort_linked_list(reversed_list)
-print("\nВідсортований список:")
+print("\nВідсортований список (після реверсу):")
 sorted_list.print_list()
