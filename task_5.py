@@ -1,7 +1,5 @@
 import uuid
-import colorsys
 from collections import deque
-from typing import List, Optional, Literal
 
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -12,13 +10,13 @@ class Node:
         self.left = None
         self.right = None
         self.val = key
-        self.color = color  # колір вузла (hex)
-        self.id = str(uuid.uuid4())  # унікальний ідентифікатор
+        self.color = color  # Додатковий аргумент для зберігання кольору вузла
+        self.id = str(uuid.uuid4())  # Унікальний ідентифікатор для кожного вузла
 
 
 def add_edges(graph, node, pos, x=0, y=0, layer=1):
     if node is not None:
-        graph.add_node(node.id, color=node.color, label=node.val)
+        graph.add_node(node.id, color=node.color, label=node.val)  # Використання id та збереження значення вузла
         if node.left:
             graph.add_edge(node.id, node.left.id)
             l = x - 1 / 2 ** layer
@@ -32,27 +30,25 @@ def add_edges(graph, node, pos, x=0, y=0, layer=1):
     return graph
 
 
-def draw_tree_once(tree_root, title: Optional[str] = None, block: bool = False):
-    """Малює дерево з поточними кольорами вузлів (НЕ блокує цикл, якщо block=False)."""
+def draw_tree_once(tree_root, title=None, block=False):
+    """Малює дерево з поточними кольорами вузлів"""
     tree = nx.DiGraph()
     pos = {tree_root.id: (0, 0)}
     add_edges(tree, tree_root, pos)
 
     colors = [node[1]['color'] for node in tree.nodes(data=True)]
-    labels = {node[0]: node[1]['label'] for node in tree.nodes(data=True)}
+    labels = {node[0]: node[1]['label'] for node in tree.nodes(data=True)} 
 
     plt.figure(figsize=(8, 5))
     if title:
         plt.title(title)
-    nx.draw(tree, pos=pos, labels=labels, arrows=False,
-            node_size=2500, node_color=colors)
+    nx.draw(tree, pos=pos, labels=labels, arrows=False, node_size=2500, node_color=colors)
+    plt.tight_layout()
     plt.show(block=block)
 
 
-# ---------- Допоміжні утиліти для обходів і кольорів ----------
-
-def iter_all_nodes_bfs(root: Node) -> List[Node]:
-    """Повертає всі вузли дерева в порядку BFS (щоб мати стабільний перелік усіх вузлів)."""
+def iter_all_nodes_bfs(root):
+    """Повертає всі вузли дерева в порядку BFS (щоб мати стабільний перелік та лічити кроки)."""
     out, seen = [], set()
     q = deque([root])
     while q:
@@ -68,101 +64,106 @@ def iter_all_nodes_bfs(root: Node) -> List[Node]:
     return out
 
 
-def gradient_hex(n: int,
-                 hue: float = 0.58,     # ~синій відтінок
-                 sat: float = 0.75,
-                 v_min: float = 0.25,   # темний старт
-                 v_max: float = 0.95) -> List[str]:
+def gradient_from_base_hex(n, base_hex="#1296F0", dark=0.35, light=1.0):
     """
-    Генерує n кольорів #RRGGBB від темного до світлого (стала H,S; змінюємо V).
+    Генерує n кольорів у форматі #RRGGBB від темнішого до світлішого відтінку базового кольору.
+    Просте масштабування компонент RGB (без зовн. бібліотек).
     """
+    base_hex = base_hex.lstrip("#")
+    r0 = int(base_hex[0:2], 16)
+    g0 = int(base_hex[2:4], 16)
+    b0 = int(base_hex[4:6], 16)
     if n <= 0:
         return []
     if n == 1:
-        vals = [v_max]
+        factors = [light]
     else:
-        vals = [v_min + (v_max - v_min) * i / (n - 1) for i in range(n)]
+        factors = [dark + (light - dark) * i / (n - 1) for i in range(n)]
     colors = []
-    for v in vals:
-        r, g, b = colorsys.hsv_to_rgb(hue, sat, v)
-        colors.append('#{:02X}{:02X}{:02X}'.format(int(r * 255), int(g * 255), int(b * 255)))
+    for f in factors:
+        r = max(0, min(255, int(r0 * f)))
+        g = max(0, min(255, int(g0 * f)))
+        b = max(0, min(255, int(b0 * f)))
+        colors.append(f"#{r:02X}{g:02X}{b:02X}")
     return colors
 
 
-def reset_colors(root: Node, hex_color: str = "#D3D3D3"):
-    """Фарбування всіх вузлів у базовий (невідвіданий) колір."""
+def reset_colors(root, hex_color="#E0E0E0"):
     for n in iter_all_nodes_bfs(root):
         n.color = hex_color
 
 
-# ---------- Візуалізація обходів (ітеративно, без рекурсії) ----------
+# ---------- Ітеративні обходи з візуалізацією ----------
 
-def visualize_traversal(root: Node,
-                        mode: Literal["bfs", "dfs"] = "bfs",
-                        pause_sec: float = 0.8,
-                        hue: float = 0.58):
-    """
-    Візуалізує кроки обходу:
-      - BFS: черга (queue)
-      - DFS: стек (stack)
-    Кожен відвіданий вузол отримує унікальний hex-колір, що світлішає з кроком.
-    """
+def visualize_bfs(root, pause_sec=0.8):
     if root is None:
-        raise ValueError("Порожнє дерево")
-
-    # 1) Отримаємо порядок відвідувань (ітеративно)
-    order: List[Node] = []
+        return
+    order = []
     visited = set()
+    q = deque([root])
 
-    if mode == "bfs":
-        q = deque([root])
-        while q:
-            u = q.popleft()
-            if u is None or u.id in visited:
-                continue
-            visited.add(u.id)
-            order.append(u)
-            if u.left:
-                q.append(u.left)
-            if u.right:
-                q.append(u.right)
+    while q:
+        u = q.popleft()
+        if u is None or u.id in visited:
+            continue
+        visited.add(u.id)
+        order.append(u)
+        if u.left:
+            q.append(u.left)
+        if u.right:
+            q.append(u.right)
 
-    elif mode == "dfs":
-        stack = [root]
-        while stack:
-            u = stack.pop()
-            if u is None or u.id in visited:
-                continue
-            visited.add(u.id)
-            order.append(u)
-            # Щоб іти "зліва-направо", спочатку кладемо right, потім left
-            if u.right:
-                stack.append(u.right)
-            if u.left:
-                stack.append(u.left)
-    else:
-        raise ValueError("mode має бути 'bfs' або 'dfs'")
+    # кольори: темний -> світлий
+    step_colors = gradient_from_base_hex(len(order), base_hex="#1296F0", dark=0.35, light=1.0)
 
-    # 2) Підготуємо градієнт для усіх кроків
-    step_colors = gradient_hex(len(order), hue=hue, sat=0.80, v_min=0.25, v_max=0.95)
-
-    # 3) Поетапне фарбування та малювання
-    reset_colors(root, "#E0E0E0")  # невідвідані — світло-сірі
+    reset_colors(root, "#E0E0E0")
     plt.ion()
     for i, node in enumerate(order, start=1):
         node.color = step_colors[i - 1]
-        title = f"{mode.upper()} крок {i}/{len(order)} — відвідуємо вузол: {node.val}"
+        title = f"BFS крок {i}/{len(order)} — {node.val}"
         draw_tree_once(root, title=title, block=False)
         plt.pause(pause_sec)
-        plt.close()  # закриваємо кадр, щоб не накопичувались вікна
+        plt.close()
     plt.ioff()
-    draw_tree_once(root, title=f"{mode.upper()} завершено", block=True)
+    draw_tree_once(root, title="BFS завершено", block=True)
+
+
+def visualize_dfs(root, pause_sec=0.8):
+    if root is None:
+        return
+    order = []
+    visited = set()
+    stack = [root]
+
+    while stack:
+        u = stack.pop()
+        if u is None or u.id in visited:
+            continue
+        visited.add(u.id)
+        order.append(u)
+        if u.right:
+            stack.append(u.right)
+        if u.left:
+            stack.append(u.left)
+
+    step_colors = gradient_from_base_hex(len(order), base_hex="#BF47DA", dark=0.35, light=1.0)  # інший колір
+
+    reset_colors(root, "#E0E0E0")
+    plt.ion()
+    for i, node in enumerate(order, start=1):
+        node.color = step_colors[i - 1]
+        title = f"DFS крок {i}/{len(order)} — {node.val}"
+        draw_tree_once(root, title=title, block=False)
+        plt.pause(pause_sec)
+        plt.close()
+    plt.ioff()
+    draw_tree_once(root, title="DFS завершено", block=True)
 
 
 # --------------------------- Приклад ---------------------------
 
 if __name__ == "__main__":
-    # Побудова прикладового дерева (як у твоєму коді)
+    # Створення дерева
     root = Node(0)
     root.left = Node(4)
     root.left.left = Node(5)
@@ -170,8 +171,11 @@ if __name__ == "__main__":
     root.right = Node(1)
     root.right.left = Node(3)
 
-    # BFS (черга): темний → світлий у порядку відвідування
-    visualize_traversal(root, mode="bfs", pause_sec=0.7, hue=0.58)
+    # Відображення початкового дерева
+    draw_tree_once(root, title="Початкове дерево", block=True)
 
-    # DFS (стек): інший відтінок (напр., фіолет)
-    visualize_traversal(root, mode="dfs", pause_sec=0.7, hue=0.76)
+    # BFS (черга): від темного до світлого синього
+    visualize_bfs(root, pause_sec=0.7)
+
+    # DFS (стек): від темного до світлого рожевого
+    visualize_dfs(root, pause_sec=0.7)
